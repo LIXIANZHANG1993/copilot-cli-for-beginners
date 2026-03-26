@@ -21,12 +21,12 @@ def show_books(books):
     print()
 
 
-def handle_list():
+def handle_list() -> None:
     books = collection.list_books()
     show_books(books)
 
 
-def handle_add():
+def handle_add() -> None:
     print("\nAdd a New Book\n")
 
     title = input("Title: ").strip()
@@ -41,7 +41,7 @@ def handle_add():
         print(f"\nError: {e}\n")
 
 
-def handle_remove():
+def handle_remove() -> None:
     print("\nRemove a Book\n")
 
     title = input("Enter the title of the book to remove: ").strip()
@@ -50,7 +50,8 @@ def handle_remove():
     print("\nBook removed if it existed.\n")
 
 
-def handle_find():
+def handle_find() -> None:
+
     print("\nFind Books by Author\n")
 
     author = input("Author name: ").strip()
@@ -79,16 +80,17 @@ def main():
 
     command = sys.argv[1].lower()
 
-    if command == "list":
-        handle_list()
-    elif command == "add":
-        handle_add()
-    elif command == "remove":
-        handle_remove()
-    elif command == "find":
-        handle_find()
-    elif command == "help":
-        show_help()
+    command_handlers = {
+        "list": handle_list,
+        "add": handle_add,
+        "remove": handle_remove,
+        "find": handle_find,
+        "help": show_help,
+    }
+
+    handler = command_handlers.get(command)
+    if handler:
+        handler()
     else:
         print("Unknown command.\n")
         show_help()

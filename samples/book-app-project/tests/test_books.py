@@ -51,3 +51,115 @@ def test_remove_book_invalid():
     collection = BookCollection()
     result = collection.remove_book("Nonexistent Book")
     assert result is False
+
+
+def test_search_books_by_title_partial_case_insensitive():
+    collection = BookCollection()
+    collection.add_book("The Pragmatic Programmer", "Andrew Hunt", 1999)
+    collection.add_book("Clean Code", "Robert C. Martin", 2008)
+
+    results = collection.search_books("prag", "title")
+
+    assert len(results) == 1
+    assert results[0].title == "The Pragmatic Programmer"
+
+
+def test_search_books_by_author_partial_case_insensitive():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("Neuromancer", "William Gibson", 1984)
+
+    results = collection.search_books("HERB", "author")
+
+    assert len(results) == 1
+    assert results[0].author == "Frank Herbert"
+
+
+def test_search_books_default_scope_both():
+    collection = BookCollection()
+    collection.add_book("Dune Messiah", "Frank Herbert", 1969)
+    collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
+
+    results = collection.search_books("dune")
+
+    assert len(results) == 1
+    assert results[0].title == "Dune Messiah"
+
+
+def test_search_books_no_match_returns_empty_list():
+    collection = BookCollection()
+    collection.add_book("1984", "George Orwell", 1949)
+
+    results = collection.search_books("asimov")
+
+    assert results == []
+
+
+def test_add_book_raises_for_empty_title():
+    collection = BookCollection()
+
+    with pytest.raises(ValueError, match="title cannot be empty"):
+        collection.add_book("   ", "George Orwell", 1949)
+
+
+def test_add_book_raises_for_negative_year():
+    collection = BookCollection()
+
+    with pytest.raises(ValueError, match="year cannot be negative"):
+        collection.add_book("1984", "George Orwell", -1)
+
+
+def test_search_books_raises_for_invalid_field():
+    collection = BookCollection()
+    collection.add_book("1984", "George Orwell", 1949)
+
+    with pytest.raises(ValueError, match="field must be 'title', 'author', or 'both'"):
+        collection.search_books("1984", "publisher")
+
+
+def test_add_rating_success_and_average():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    assert collection.add_rating("Dune", 8) is True
+    assert collection.add_rating("Dune", 10) is True
+    assert collection.get_average_rating("Dune") == 9.0
+
+
+def test_add_rating_invalid_value_raises():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    with pytest.raises(ValueError, match="rating must be between 1 and 10"):
+        collection.add_rating("Dune", 11)
+
+
+def test_add_review_and_get_reviews_with_multiple_entries():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    assert collection.add_review("Dune", "Excellent pacing.") is True
+    assert collection.add_review("Dune", "Loved the characters.") is True
+    assert collection.get_reviews("Dune") == ["Excellent pacing.", "Loved the characters."]
+
+
+def test_add_review_empty_raises():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    with pytest.raises(ValueError, match="review cannot be empty"):
+        collection.add_review("Dune", "   ")
+
+
+def test_load_books_backward_compatible_without_ratings_reviews(tmp_path, monkeypatch):
+    legacy_data = '[{"title":"Legacy Book","author":"Anon","year":2000,"read":false}]'
+    temp_file = tmp_path / "legacy.json"
+    temp_file.write_text(legacy_data)
+    monkeypatch.setattr(books, "DATA_FILE", str(temp_file))
+
+    collection = BookCollection()
+    book = collection.find_book_by_title("Legacy Book")
+
+    assert book is not None
+    assert book.ratings == []
+    assert book.reviews == []
