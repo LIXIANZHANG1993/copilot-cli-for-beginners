@@ -1,62 +1,93 @@
+from errors import ValidationError
 
-def print_menu():
-    print("\n📚 Book Collection App")
-    print("1. Add a book")
-    print("2. List books")
-    print("3. Mark book as read")
-    print("4. Remove a book")
-    print("5. Exit")
+
+MENU_OPTIONS = {"1", "2", "3", "4", "5"}
+
+
+def display_message(message: str) -> None:
+    print(message)
+
+
+def format_menu_lines() -> list[str]:
+    return [
+        "\n📚 Book Collection App",
+        "1. Add a book",
+        "2. List books",
+        "3. Mark book as read",
+        "4. Remove a book",
+        "5. Exit",
+    ]
+
+
+def print_menu() -> None:
+    for line in format_menu_lines():
+        display_message(line)
+
+
+def validate_user_choice(raw_choice: str) -> str:
+    choice = raw_choice.strip()
+    if not choice:
+        raise ValidationError("Input cannot be empty. Please enter a number.")
+    if not choice.isdigit():
+        raise ValidationError("Invalid input. Please enter a number.")
+    if choice not in MENU_OPTIONS:
+        raise ValidationError("Invalid choice. Please enter a number between 1 and 5.")
+    return choice
 
 
 def get_user_choice() -> str:
     while True:
-        choice = input("Choose an option (1-5): ").strip()
-        if not choice:
-            print("Input cannot be empty. Please enter a number.")
-            continue
-        if not choice.isdigit():
-            print("Invalid input. Please enter a number.")
-            continue
-        return choice
+        raw_choice = input("Choose an option (1-5): ")
+        try:
+            return validate_user_choice(raw_choice)
+        except ValidationError as error:
+            display_message(str(error))
 
 
-def get_book_details():
-    """Collect book details from user input with basic validation.
+def validate_title(raw_title: str) -> str:
+    title = raw_title.strip()
+    if not title:
+        raise ValidationError("Title cannot be empty. Please enter a title.")
+    return title
 
-    Parameters:
-        None: This function does not accept parameters. It prompts the user
-        interactively via standard input.
 
-    Returns:
-        tuple[str, str, int]: A tuple containing:
-            - title (str): Non-empty book title entered by the user.
-            - author (str): Author name entered by the user (may be empty).
-            - year (int): Publication year converted to an integer. If the
-              entered value is invalid, defaults to 0.
-    """
-    while True:
-        title = input("Enter book title: ").strip()
-        if title:
-            break
-        print("Title cannot be empty. Please enter a title.")
-    author = input("Enter author: ").strip()
-
-    year_input = input("Enter publication year: ").strip()
+def parse_publication_year(year_input: str) -> tuple[int, bool]:
     try:
-        year = int(year_input)
+        return int(year_input.strip()), False
     except ValueError:
-        print("Invalid year. Defaulting to 0.")
-        year = 0
+        return 0, True
+
+
+def get_book_details() -> tuple[str, str, int]:
+    """Collect book details from user input with validation."""
+    while True:
+        raw_title = input("Enter book title: ")
+        try:
+            title = validate_title(raw_title)
+            break
+        except ValidationError as error:
+            display_message(str(error))
+
+    author = input("Enter author: ").strip()
+    year_input = input("Enter publication year: ")
+    year, used_default = parse_publication_year(year_input)
+    if used_default:
+        display_message("Invalid year. Defaulting to 0.")
 
     return title, author, year
 
 
-def print_books(books):
+def format_books(books) -> list[str]:
     if not books:
-        print("No books in your collection.")
-        return
+        return ["No books in your collection."]
 
-    print("\nYour Books:")
+    lines = ["\nYour Books:"]
     for index, book in enumerate(books, start=1):
         status = "✅ Read" if book.read else "📖 Unread"
-        print(f"{index}. {book.title} by {book.author} ({book.year}) - {status}")
+        lines.append(f"{index}. {book.title} by {book.author} ({book.year}) - {status}")
+    return lines
+
+
+def print_books(books) -> None:
+    for line in format_books(books):
+        display_message(line)

@@ -1,6 +1,7 @@
 import sys
 from books import BookCollection
 from utils import print_books
+from errors import BookAppError, NotFoundError
 
 
 # Global collection instance
@@ -23,7 +24,7 @@ def handle_add() -> None:
         year = int(year_str) if year_str else 0
         collection.add_book(title, author, year)
         print("\nBook added successfully.\n")
-    except ValueError as e:
+    except BookAppError as e:
         print(f"\nError: {e}\n")
 
 
@@ -55,7 +56,7 @@ def handle_search() -> None:
     try:
         results = collection.search_books(query, scope)
         print_books(results)
-    except ValueError as e:
+    except BookAppError as e:
         print(f"\nError: {e}\n")
 
 
@@ -67,12 +68,14 @@ def handle_rate() -> None:
 
     try:
         rating = int(rating_str)
-        if not collection.add_rating(title, rating):
-            print("\nBook not found.\n")
-            return
+        collection.add_rating(title, rating)
         average = collection.get_average_rating(title)
         print(f"\nRating added. Current average: {average:.1f}/10\n")
-    except ValueError as e:
+    except NotFoundError:
+        print("\nBook not found.\n")
+    except ValueError:
+        print("\nError: rating must be a number.\n")
+    except BookAppError as e:
         print(f"\nError: {e}\n")
 
 
@@ -83,11 +86,11 @@ def handle_review() -> None:
     review = input("Review text: ").strip()
 
     try:
-        if not collection.add_review(title, review):
-            print("\nBook not found.\n")
-            return
+        collection.add_review(title, review)
         print("\nReview added successfully.\n")
-    except ValueError as e:
+    except NotFoundError:
+        print("\nBook not found.\n")
+    except BookAppError as e:
         print(f"\nError: {e}\n")
 
 
