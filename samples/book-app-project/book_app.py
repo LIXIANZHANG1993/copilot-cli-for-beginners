@@ -1,29 +1,15 @@
 import sys
 from books import BookCollection
+from utils import print_books
 
 
 # Global collection instance
 collection = BookCollection()
 
 
-def show_books(books):
-    """Display books in a user-friendly format."""
-    if not books:
-        print("No books found.")
-        return
-
-    print("\nYour Book Collection:\n")
-
-    for index, book in enumerate(books, start=1):
-        status = "✓" if book.read else " "
-        print(f"{index}. [{status}] {book.title} by {book.author} ({book.year})")
-
-    print()
-
-
 def handle_list() -> None:
     books = collection.list_books()
-    show_books(books)
+    print_books(books)
 
 
 def handle_add() -> None:
@@ -57,7 +43,67 @@ def handle_find() -> None:
     author = input("Author name: ").strip()
     books = collection.find_by_author(author)
 
-    show_books(books)
+    print_books(books)
+
+
+def handle_search() -> None:
+    print("\nSearch Books\n")
+
+    query = input("Keyword (title or author): ").strip()
+    scope = input("Scope [both/title/author] (default: both): ").strip().lower() or "both"
+
+    try:
+        results = collection.search_books(query, scope)
+        print_books(results)
+    except ValueError as e:
+        print(f"\nError: {e}\n")
+
+
+def handle_rate() -> None:
+    print("\nRate a Book\n")
+
+    title = input("Book title: ").strip()
+    rating_str = input("Rating (1-10): ").strip()
+
+    try:
+        rating = int(rating_str)
+        if not collection.add_rating(title, rating):
+            print("\nBook not found.\n")
+            return
+        average = collection.get_average_rating(title)
+        print(f"\nRating added. Current average: {average:.1f}/10\n")
+    except ValueError as e:
+        print(f"\nError: {e}\n")
+
+
+def handle_review() -> None:
+    print("\nAdd a Review\n")
+
+    title = input("Book title: ").strip()
+    review = input("Review text: ").strip()
+
+    try:
+        if not collection.add_review(title, review):
+            print("\nBook not found.\n")
+            return
+        print("\nReview added successfully.\n")
+    except ValueError as e:
+        print(f"\nError: {e}\n")
+
+
+def handle_reviews() -> None:
+    print("\nShow Reviews\n")
+
+    title = input("Book title: ").strip()
+    reviews = collection.get_reviews(title)
+    if not reviews:
+        print("\nNo reviews found.\n")
+        return
+
+    print()
+    for index, review in enumerate(reviews, start=1):
+        print(f"{index}. {review}")
+    print()
 
 
 def show_help():
@@ -69,6 +115,10 @@ Commands:
   add      - Add a new book
   remove   - Remove a book by title
   find     - Find books by author
+  search   - Search books by title/author keyword
+  rate     - Add a 1-10 rating to a book
+  review   - Add a text review for a book
+  reviews  - Show all reviews for a book
   help     - Show this help message
 """)
 
@@ -85,6 +135,10 @@ def main():
         "add": handle_add,
         "remove": handle_remove,
         "find": handle_find,
+        "search": handle_search,
+        "rate": handle_rate,
+        "review": handle_review,
+        "reviews": handle_reviews,
         "help": show_help,
     }
 

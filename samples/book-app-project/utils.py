@@ -1,3 +1,4 @@
+
 def print_menu():
     print("\n📚 Book Collection App")
     print("1. Add a book")
