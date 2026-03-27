@@ -110,6 +110,39 @@ def test_add_book_raises_for_negative_year():
         collection.add_book("1984", "George Orwell", -1)
 
 
+@pytest.mark.parametrize(
+    "title, author, year",
+    [
+        ("  Dune  ", "Frank Herbert", 1965),
+        ("Dune", "  Frank Herbert  ", 1965),
+        ("  Dune  ", "  Frank Herbert  ", 1965),
+    ],
+)
+def test_add_book_normalizes_title_and_author_whitespace(title, author, year):
+    collection = BookCollection()
+
+    created = collection.add_book(title, author, year)
+
+    assert created.title == "Dune"
+    assert created.author == "Frank Herbert"
+    assert collection.find_book_by_title("Dune") is not None
+
+
+@pytest.mark.parametrize(
+    "title, author, year, error_message",
+    [
+        (None, "George Orwell", 1949, "title must be a string"),
+        ("1984", None, 1949, "author must be a string"),
+        ("1984", "George Orwell", True, "year must be an integer"),
+        ("1984", "George Orwell", 1949.5, "year must be an integer"),
+    ],
+)
+def test_add_book_raises_for_invalid_types(title, author, year, error_message):
+    collection = BookCollection()
+
+    with pytest.raises(ValueError, match=error_message):
+        collection.add_book(title, author, year)
+
 def test_search_books_raises_for_invalid_field():
     collection = BookCollection()
     collection.add_book("1984", "George Orwell", 1949)
