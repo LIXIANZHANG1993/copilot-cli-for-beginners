@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 import books
-from books import BookCollection
+from books import Book, BookCollection
 from errors import NotFoundError, StorageError, ValidationError
 
 
@@ -237,3 +237,325 @@ def test_save_books_raises_storage_error_on_oserror(monkeypatch):
 
     with pytest.raises(StorageError, match="failed to save data file"):
         collection.save_books()
+
+
+def test_list_books_returns_internal_list_reference():
+    collection = BookCollection()
+    listed = collection.list_books()
+    assert listed is collection.books
+    assert listed == []
+
+
+def test_find_by_author_exact_case_insensitive_match():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("Children of Dune", "Frank Herbert", 1976)
+    collection.add_book("Foundation", "Isaac Asimov", 1951)
+
+    results = collection.find_by_author("  frank herbert ")
+
+    assert len(results) == 2
+    assert [b.title for b in results] == ["Dune", "Children of Dune"]
+
+
+def test_find_by_author_with_hyphenated_name():
+    collection = BookCollection()
+    collection.add_book("Nausea", "Jean-Paul Sartre", 1938)
+    collection.add_book("No Exit", "Jean-Paul Sartre", 1944)
+    collection.add_book("The Stranger", "Albert Camus", 1942)
+
+    results = collection.find_by_author("jean-paul sartre")
+
+    assert len(results) == 2
+    assert [b.title for b in results] == ["Nausea", "No Exit"]
+
+
+def test_find_by_author_with_multiple_first_names():
+    collection = BookCollection()
+    collection.add_book("Don Quixote", "Miguel de Cervantes", 1605)
+    collection.add_book("Exemplary Novels", "Miguel de Cervantes", 1613)
+    collection.add_book("Hamlet", "William Shakespeare", 1603)
+
+    results = collection.find_by_author("  miguel de cervantes ")
+
+    assert len(results) == 2
+    assert [b.title for b in results] == ["Don Quixote", "Exemplary Novels"]
+
+
+def test_find_by_author_with_empty_string_returns_empty_list():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    assert collection.find_by_author("") == []
+    assert collection.find_by_author("   ") == []
+
+
+def test_find_by_author_with_accented_characters():
+    collection = BookCollection()
+    collection.add_book("One Hundred Years of Solitude", "Gabriel García Márquez", 1967)
+    collection.add_book("Love in the Time of Cholera", "Gabriel García Márquez", 1985)
+    collection.add_book("Blindness", "Jose Saramago", 1995)
+
+    results = collection.find_by_author("gabriel garcía márquez")
+
+    assert len(results) == 2
+    assert [b.title for b in results] == [
+        "One Hundred Years of Solitude",
+        "Love in the Time of Cholera",
+    ]
+
+
+def test_adding_multiple_books_preserves_insert_order():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("Foundation", "Isaac Asimov", 1951)
+
+    books_in_collection = collection.list_books()
+    assert [b.title for b in books_in_collection] == ["Dune", "Foundation"]
+
+
+def test_find_book_by_title_exact_case_insensitive_and_trimmed():
+    collection = BookCollection()
+    collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
+
+    result = collection.find_book_by_title("  the hobbit  ")
+    assert result is not None
+    assert result.author == "J.R.R. Tolkien"
+
+
+def test_find_book_by_title_returns_none_when_empty_collection():
+    collection = BookCollection()
+    assert collection.find_book_by_title("Anything") is None
+
+
+def test_find_by_author_returns_empty_when_collection_is_empty():
+    collection = BookCollection()
+    assert collection.find_by_author("Frank Herbert") == []
+
+
+def test_remove_book_returns_false_when_collection_is_empty():
+    collection = BookCollection()
+    assert collection.remove_book("Missing") is False
+    assert collection.list_books() == []
+
+
+def test_mark_as_read_returns_false_when_collection_is_empty():
+    collection = BookCollection()
+    assert collection.mark_as_read("Missing") is False
+    assert collection.list_books() == []
+
+
+def test_edge_case_empty_data_collection_starts_and_stays_empty():
+    collection = BookCollection()
+    assert collection.list_books() == []
+    assert collection.find_by_author("Anyone") == []
+    assert collection.find_book_by_title("Unknown") is None
+    assert collection.remove_book("Unknown") is False
+    assert collection.mark_as_read("Unknown") is False
+
+
+@pytest.mark.parametrize(
+    "value,field_name,expected_message",
+    [
+        (None, "title", "title must be a string"),
+        (123, "author", "author must be a string"),
+        ("   ", "review", "review cannot be empty"),
+    ],
+)
+def test_validate_text_input_raises_for_invalid_values(value, field_name, expected_message):
+    with pytest.raises(ValidationError, match=expected_message):
+        BookCollection._validate_text_input(value, field_name)
+
+
+def test_validate_text_input_strips_and_returns_value():
+    assert BookCollection._validate_text_input("  Dune  ", "title") == "Dune"
+
+
+@pytest.mark.parametrize("year", [True, False, "1949", 1949.5, None])
+def test_validate_year_raises_for_non_integer_values(year):
+    with pytest.raises(ValidationError, match="year must be an integer"):
+        BookCollection._validate_year(year)
+
+
+def test_validate_year_raises_for_negative_value():
+    with pytest.raises(ValidationError, match="year cannot be negative"):
+        BookCollection._validate_year(-1)
+
+
+def test_validate_year_accepts_zero_as_boundary():
+    assert BookCollection._validate_year(0) == 0
+
+
+def test_normalize_search_field_raises_for_non_string():
+    with pytest.raises(ValidationError, match="field must be 'title', 'author', or 'both'"):
+        BookCollection._normalize_search_field(None)
+
+
+def test_normalize_search_field_trims_and_lowercases():
+    assert BookCollection._normalize_search_field("  AuThOr ") == "author"
+
+
+@pytest.mark.parametrize("rating", [True, False, "8", 8.5, None])
+def test_validate_rating_raises_for_non_integer_values(rating):
+    with pytest.raises(ValidationError, match="rating must be an integer"):
+        BookCollection._validate_rating(rating)
+
+
+@pytest.mark.parametrize("rating", [0, 11, -5])
+def test_validate_rating_raises_for_out_of_range_values(rating):
+    with pytest.raises(ValidationError, match="rating must be between 1 and 10"):
+        BookCollection._validate_rating(rating)
+
+
+@pytest.mark.parametrize("rating", [1, 10])
+def test_validate_rating_accepts_boundaries(rating):
+    assert BookCollection._validate_rating(rating) == rating
+
+
+def test_book_from_dict_normalizes_non_list_ratings_and_reviews():
+    collection = BookCollection()
+    book = collection._book_from_dict(
+        {
+            "title": "Dune",
+            "author": "Frank Herbert",
+            "year": 1965,
+            "read": False,
+            "ratings": "not-a-list",
+            "reviews": {"text": "wrong-shape"},
+        }
+    )
+
+    assert isinstance(book, Book)
+    assert book.ratings == []
+    assert book.reviews == []
+
+
+def test_book_from_dict_raises_type_error_when_required_fields_missing():
+    collection = BookCollection()
+    with pytest.raises(TypeError):
+        collection._book_from_dict({"title": "Dune"})
+
+
+def test_load_books_uses_empty_list_when_file_not_found(tmp_path, monkeypatch):
+    missing_file = tmp_path / "missing.json"
+    monkeypatch.setattr(books, "DATA_FILE", str(missing_file))
+
+    collection = BookCollection()
+    assert collection.books == []
+
+
+def test_open_data_file_write_mode_maps_file_not_found_to_storage_error(monkeypatch):
+    collection = BookCollection()
+
+    def raise_file_not_found(*args, **kwargs):
+        raise FileNotFoundError("missing path")
+
+    monkeypatch.setattr("builtins.open", raise_file_not_found)
+
+    with pytest.raises(StorageError, match="failed to save data file: file not found"):
+        with collection._open_data_file("w"):
+            pass
+
+
+def test_open_data_file_read_mode_propagates_file_not_found(monkeypatch):
+    collection = BookCollection()
+
+    def raise_file_not_found(*args, **kwargs):
+        raise FileNotFoundError("missing path")
+
+    monkeypatch.setattr("builtins.open", raise_file_not_found)
+
+    with pytest.raises(FileNotFoundError):
+        with collection._open_data_file("r"):
+            pass
+
+
+@pytest.mark.parametrize(
+    "mode,expected_message",
+    [
+        ("r", "failed to load data file: permission denied"),
+        ("w", "failed to save data file: permission denied"),
+    ],
+)
+def test_open_data_file_maps_oserror_by_mode(monkeypatch, mode, expected_message):
+    collection = BookCollection()
+
+    def raise_oserror(*args, **kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr("builtins.open", raise_oserror)
+
+    with pytest.raises(StorageError, match=expected_message):
+        with collection._open_data_file(mode):
+            pass
+
+
+def test_adding_duplicate_books_same_title_and_author_is_allowed():
+    collection = BookCollection()
+
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    assert len(collection.list_books()) == 2
+    assert [book.title for book in collection.list_books()] == ["Dune", "Dune"]
+    assert [book.author for book in collection.list_books()] == ["Frank Herbert", "Frank Herbert"]
+
+
+def test_remove_book_partial_title_does_not_match():
+    collection = BookCollection()
+    collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
+
+    result = collection.remove_book("Hob")
+
+    assert result is False
+    assert collection.find_book_by_title("The Hobbit") is not None
+
+
+def test_remove_book_with_duplicates_removes_only_one_record():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    assert collection.remove_book("Dune") is True
+    assert len(collection.list_books()) == 1
+    assert collection.find_book_by_title("Dune") is not None
+
+
+def test_search_books_returns_empty_when_collection_is_empty():
+    collection = BookCollection()
+    assert collection.search_books("dune", "both") == []
+
+
+def test_save_books_raises_storage_error_on_permission_denied(monkeypatch):
+    collection = BookCollection()
+
+    def raise_permission_error(*args, **kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr("builtins.open", raise_permission_error)
+
+    with pytest.raises(StorageError, match="failed to save data file: permission denied"):
+        collection.save_books()
+
+
+def test_add_book_raises_storage_error_when_save_permission_denied(monkeypatch):
+    collection = BookCollection()
+
+    def raise_permission_error(*args, **kwargs):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr("builtins.open", raise_permission_error)
+
+    with pytest.raises(StorageError, match="failed to save data file: permission denied"):
+        collection.add_book("Dune", "Frank Herbert", 1965)
+
+
+def test_concurrent_access_two_instances_require_reload_to_see_updates():
+    first_client = BookCollection()
+    second_client = BookCollection()
+
+    first_client.add_book("Dune", "Frank Herbert", 1965)
+    assert second_client.find_book_by_title("Dune") is None
+
+    second_client.load_books()
+    assert second_client.find_book_by_title("Dune") is not None
