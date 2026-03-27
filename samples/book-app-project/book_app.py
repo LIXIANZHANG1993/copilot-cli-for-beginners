@@ -32,9 +32,11 @@ def handle_remove() -> None:
     print("\nRemove a Book\n")
 
     title = input("Enter the title of the book to remove: ").strip()
-    collection.remove_book(title)
-
-    print("\nBook removed if it existed.\n")
+    removed, message = collection.remove_book(title)
+    if removed:
+        print(f"\n{message}\n")
+    else:
+        print(f"\nNot removed: {message}\n")
 
 
 def handle_find() -> None:

@@ -280,7 +280,7 @@ C:\Copilot_learn\copilot-cli-for-beginners\samples\book-app-project\books.py
 68.             return True
 69.         return False
 70. 
-71.     def remove_book(self, title: str) -> bool:
+71.     def remove_book(self, title: str) -> Tuple[bool, str]:
 72.         """Remove a book by title."""
 73.         book = self.find_book_by_title(title)
 74.         if book:
@@ -643,7 +643,7 @@ C:\Copilot_learn\copilot-cli-for-beginners\samples\book-app-project\books.py (li
 68.             return True
 69.         return False
 70. 
-71.     def remove_book(self, title: str) -> bool:
+71.     def remove_book(self, title: str) -> Tuple[bool, str]:
 72.         """Remove a book by title."""
 73.         book = self.find_book_by_title(title)
 74.         if book:

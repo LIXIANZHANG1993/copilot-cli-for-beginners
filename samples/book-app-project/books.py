@@ -1,7 +1,7 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass, asdict, field
-from typing import Iterator, List, Optional, TextIO
+from typing import Iterator, List, Optional, TextIO, Tuple
 from errors import ValidationError, NotFoundError, StorageError
 
 DATA_FILE = "data.json"
@@ -134,10 +134,11 @@ class BookCollection:
         return self.books
 
     def find_book_by_title(self, title: str) -> Optional[Book]:
-        """Find a single book by exact title match (case-insensitive).
+        """Find a single book by normalized exact title match.
 
         Args:
-            title (str): Title to match. Leading/trailing spaces are ignored.
+            title (str): Title to match. Comparison is case-insensitive and
+                normalizes extra whitespace.
 
         Returns:
             Optional[Book]: Matching Book if found, otherwise None.
@@ -154,9 +155,9 @@ class BookCollection:
         if not isinstance(title, str) or not title.strip():
             return None
 
-        normalized_title = title.strip().lower()
+        normalized_title = self._normalize_match_text(title)
         for book in self.books:
-            if book.title.lower() == normalized_title:
+            if self._normalize_match_text(book.title) == normalized_title:
                 return book
         return None
 
@@ -185,14 +186,16 @@ class BookCollection:
             return True
         return False
 
-    def remove_book(self, title: str) -> bool:
+    def remove_book(self, title: str) -> Tuple[bool, str]:
         """Remove a book by title.
 
         Args:
             title (str): Title of the book to remove.
 
         Returns:
-            bool: True if a book was removed, False if no match was found.
+            Tuple[bool, str]:
+                - First item is True if a book was removed, otherwise False.
+                - Second item is a user-friendly status message.
 
         Raises:
             StorageError: If saving after removal fails.
@@ -201,14 +204,32 @@ class BookCollection:
             >>> collection = BookCollection()
             >>> collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
             >>> collection.remove_book("The Hobbit")
-            True
+            (True, "Book 'The Hobbit' removed.")
         """
-        book = self.find_book_by_title(title)
-        if book:
-            self.books.remove(book)
-            self.save_books()
-            return True
-        return False
+        if not isinstance(title, str):
+            return False, "Title must be a string."
+
+        normalized_title = self._normalize_match_text(title)
+        if not normalized_title:
+            return False, "Title cannot be empty."
+
+        for index, book in enumerate(self.books):
+            if self._normalize_match_text(book.title) == normalized_title:
+                removed_title = book.title
+                del self.books[index]
+                self.save_books()
+                return True, f"Book '{removed_title}' removed."
+
+        suggestions = [
+            book.title for book in self.books if normalized_title in self._normalize_match_text(book.title)
+        ][:3]
+        if suggestions:
+            return (
+                False,
+                "Book not found. Did you mean: " + ", ".join(f"'{candidate}'" for candidate in suggestions) + "?",
+            )
+
+        return False, f"Book '{title.strip()}' not found."
 
     def find_by_author(self, author: str) -> List[Book]:
         """Find all books by exact author match (case-insensitive).
@@ -452,6 +473,11 @@ class BookCollection:
         if not isinstance(field, str):
             raise ValidationError("field must be 'title', 'author', or 'both'")
         return field.strip().lower()
+
+    @staticmethod
+    def _normalize_match_text(value: str) -> str:
+        """Normalize text for robust title matching."""
+        return " ".join(value.strip().split()).casefold()
 
     @staticmethod
     def _validate_rating(rating: int) -> int:

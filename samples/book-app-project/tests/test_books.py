@@ -43,15 +43,17 @@ def test_mark_book_as_read_invalid():
 def test_remove_book():
     collection = BookCollection()
     collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
-    result = collection.remove_book("The Hobbit")
+    result, message = collection.remove_book("The Hobbit")
     assert result is True
+    assert message == "Book 'The Hobbit' removed."
     book = collection.find_book_by_title("The Hobbit")
     assert book is None
 
 def test_remove_book_invalid():
     collection = BookCollection()
-    result = collection.remove_book("Nonexistent Book")
+    result, message = collection.remove_book("Nonexistent Book")
     assert result is False
+    assert message == "Book 'Nonexistent Book' not found."
 
 
 def test_search_books_by_title_partial_case_insensitive():
@@ -356,6 +358,16 @@ def test_find_book_by_title_exact_case_insensitive_and_trimmed():
     assert result.author == "J.R.R. Tolkien"
 
 
+def test_find_book_by_title_normalizes_internal_whitespace():
+    collection = BookCollection()
+    collection.add_book("The  Hobbit", "J.R.R. Tolkien", 1937)
+
+    result = collection.find_book_by_title("The Hobbit")
+
+    assert result is not None
+    assert result.title == "The  Hobbit"
+
+
 def test_find_book_by_title_returns_none_when_empty_collection():
     collection = BookCollection()
     assert collection.find_book_by_title("Anything") is None
@@ -368,7 +380,9 @@ def test_find_by_author_returns_empty_when_collection_is_empty():
 
 def test_remove_book_returns_false_when_collection_is_empty():
     collection = BookCollection()
-    assert collection.remove_book("Missing") is False
+    result, message = collection.remove_book("Missing")
+    assert result is False
+    assert message == "Book 'Missing' not found."
     assert collection.list_books() == []
 
 
@@ -383,7 +397,9 @@ def test_edge_case_empty_data_collection_starts_and_stays_empty():
     assert collection.list_books() == []
     assert collection.find_by_author("Anyone") == []
     assert collection.find_book_by_title("Unknown") is None
-    assert collection.remove_book("Unknown") is False
+    result, message = collection.remove_book("Unknown")
+    assert result is False
+    assert message == "Book 'Unknown' not found."
     assert collection.mark_as_read("Unknown") is False
 
 
@@ -538,9 +554,10 @@ def test_remove_book_partial_title_does_not_match():
     collection = BookCollection()
     collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
 
-    result = collection.remove_book("Hob")
+    result, message = collection.remove_book("Hob")
 
     assert result is False
+    assert message == "Book not found. Did you mean: 'The Hobbit'?"
     assert collection.find_book_by_title("The Hobbit") is not None
 
 
@@ -549,9 +566,82 @@ def test_remove_book_with_duplicates_removes_only_one_record():
     collection.add_book("Dune", "Frank Herbert", 1965)
     collection.add_book("Dune", "Frank Herbert", 1965)
 
-    assert collection.remove_book("Dune") is True
+    result, message = collection.remove_book("Dune")
+    assert result is True
+    assert message == "Book 'Dune' removed."
     assert len(collection.list_books()) == 1
     assert collection.find_book_by_title("Dune") is not None
+
+
+def test_remove_book_casefold_and_extra_spaces_match():
+    collection = BookCollection()
+    collection.add_book("Dune Messiah", "Frank Herbert", 1969)
+
+    result, message = collection.remove_book("  dune   messiah ")
+
+    assert result is True
+    assert message == "Book 'Dune Messiah' removed."
+    assert collection.find_book_by_title("Dune Messiah") is None
+
+
+def test_remove_book_returns_validation_message_for_invalid_title_type():
+    collection = BookCollection()
+
+    result, message = collection.remove_book(None)
+
+    assert result is False
+    assert message == "Title must be a string."
+
+
+def test_remove_book_returns_validation_message_for_blank_title():
+    collection = BookCollection()
+
+    result, message = collection.remove_book("   ")
+
+    assert result is False
+    assert message == "Title cannot be empty."
+
+
+def test_remove_book_existing_book_returns_success_feedback():
+    collection = BookCollection()
+    collection.add_book("Project Hail Mary", "Andy Weir", 2021)
+
+    removed, message = collection.remove_book("Project Hail Mary")
+
+    assert removed is True
+    assert message == "Book 'Project Hail Mary' removed."
+    assert collection.find_book_by_title("Project Hail Mary") is None
+
+
+def test_remove_book_title_match_is_case_insensitive():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    removed, message = collection.remove_book("dUnE")
+
+    assert removed is True
+    assert message == "Book 'Dune' removed."
+    assert collection.find_book_by_title("Dune") is None
+
+
+def test_remove_book_missing_book_returns_useful_feedback():
+    collection = BookCollection()
+    collection.add_book("Dune Messiah", "Frank Herbert", 1969)
+
+    removed, message = collection.remove_book("Dune")
+
+    assert removed is False
+    assert message == "Book not found. Did you mean: 'Dune Messiah'?"
+    assert collection.find_book_by_title("Dune Messiah") is not None
+
+
+def test_remove_book_from_empty_collection_returns_not_found_feedback():
+    collection = BookCollection()
+
+    removed, message = collection.remove_book("The Hobbit")
+
+    assert removed is False
+    assert message == "Book 'The Hobbit' not found."
 
 
 def test_search_books_returns_empty_when_collection_is_empty():
