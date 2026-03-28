@@ -70,3 +70,13 @@ def test_show_help_lists_new_commands(capsys):
     assert "rate     - Add a 1-10 rating to a book" in captured.out
     assert "review   - Add a text review for a book" in captured.out
     assert "reviews  - Show all reviews for a book" in captured.out
+
+
+def test_handle_remove_reports_not_removed_when_missing(tmp_path, monkeypatch, capsys):
+    _setup_collection(tmp_path, monkeypatch)
+    _set_inputs(monkeypatch, ["Missing"])
+
+    book_app.handle_remove()
+
+    captured = capsys.readouterr()
+    assert "Not removed: Book 'Missing' not found." in captured.out

@@ -1,7 +1,7 @@
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass, asdict, field
-from typing import Iterator, List, Optional, TextIO, Tuple
+from typing import Iterator, List, Optional, TextIO
 from errors import ValidationError, NotFoundError, StorageError
 
 DATA_FILE = "data.json"
@@ -63,6 +63,8 @@ class BookCollection:
             self.books = []
         except json.JSONDecodeError:
             raise StorageError("data.json is corrupted")
+        except (TypeError, ValueError, ValidationError) as error:
+            raise StorageError("data.json contains invalid book records") from error
 
     def save_books(self) -> None:
         """Persist the in-memory book list to the JSON data file.
@@ -161,75 +163,72 @@ class BookCollection:
                 return book
         return None
 
-    def mark_as_read(self, title: str) -> bool:
+    def mark_as_read(self, title: str) -> None:
         """Mark a book as read by title.
 
         Args:
             title (str): Title of the target book.
 
         Returns:
-            bool: True if the book was found and updated, False otherwise.
+            None
 
         Raises:
+            NotFoundError: If the target book does not exist.
             StorageError: If saving the updated state fails.
 
         Example:
             >>> collection = BookCollection()
             >>> collection.add_book("Dune", "Frank Herbert", 1965)
             >>> collection.mark_as_read("Dune")
-            True
         """
         book = self.find_book_by_title(title)
-        if book:
-            book.read = True
-            self.save_books()
-            return True
-        return False
+        if not book:
+            raise NotFoundError("book not found")
 
-    def remove_book(self, title: str) -> Tuple[bool, str]:
+        book.read = True
+        self.save_books()
+
+    def remove_book(self, title: str) -> None:
         """Remove a book by title.
 
         Args:
             title (str): Title of the book to remove.
 
         Returns:
-            Tuple[bool, str]:
-                - First item is True if a book was removed, otherwise False.
-                - Second item is a user-friendly status message.
+            None
 
         Raises:
+            ValidationError: If title is not a non-empty string.
+            NotFoundError: If no book matches the provided title.
             StorageError: If saving after removal fails.
 
         Example:
             >>> collection = BookCollection()
             >>> collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
             >>> collection.remove_book("The Hobbit")
-            (True, "Book 'The Hobbit' removed.")
         """
         if not isinstance(title, str):
-            return False, "Title must be a string."
+            raise ValidationError("Title must be a string.")
 
         normalized_title = self._normalize_match_text(title)
         if not normalized_title:
-            return False, "Title cannot be empty."
+            raise ValidationError("Title cannot be empty.")
 
         for index, book in enumerate(self.books):
             if self._normalize_match_text(book.title) == normalized_title:
-                removed_title = book.title
                 del self.books[index]
                 self.save_books()
-                return True, f"Book '{removed_title}' removed."
+                return
 
         suggestions = [
             book.title for book in self.books if normalized_title in self._normalize_match_text(book.title)
         ][:3]
         if suggestions:
-            return (
-                False,
-                "Book not found. Did you mean: " + ", ".join(f"'{candidate}'" for candidate in suggestions) + "?",
+            raise NotFoundError(
+                "Book not found. Did you mean: " + ", ".join(f"'{candidate}'" for candidate in suggestions) + "?"
             )
 
-        return False, f"Book '{title.strip()}' not found."
+        raise NotFoundError(f"Book '{title.strip()}' not found.")
 
     def find_by_author(self, author: str) -> List[Book]:
         """Find all books by exact author match (case-insensitive).
@@ -299,7 +298,7 @@ class BookCollection:
 
         return results
 
-    def add_rating(self, title: str, rating: int) -> bool:
+    def add_rating(self, title: str, rating: int) -> None:
         """Add a numeric rating to a book.
 
         Args:
@@ -307,7 +306,7 @@ class BookCollection:
             rating (int): Rating value from 1 to 10.
 
         Returns:
-            bool: True when rating is successfully added.
+            None
 
         Raises:
             NotFoundError: If the target book does not exist.
@@ -318,7 +317,6 @@ class BookCollection:
             >>> collection = BookCollection()
             >>> collection.add_book("Dune", "Frank Herbert", 1965)
             >>> collection.add_rating("Dune", 9)
-            True
         """
         book = self.find_book_by_title(title)
         if not book:
@@ -327,9 +325,8 @@ class BookCollection:
         validated_rating = self._validate_rating(rating)
         book.ratings.append(validated_rating)
         self.save_books()
-        return True
 
-    def add_review(self, title: str, review: str) -> bool:
+    def add_review(self, title: str, review: str) -> None:
         """Add a text review to a book.
 
         Args:
@@ -337,7 +334,7 @@ class BookCollection:
             review (str): Review text. Must be a non-empty string.
 
         Returns:
-            bool: True when the review is successfully added.
+            None
 
         Raises:
             NotFoundError: If the target book does not exist.
@@ -348,7 +345,6 @@ class BookCollection:
             >>> collection = BookCollection()
             >>> collection.add_book("Dune", "Frank Herbert", 1965)
             >>> collection.add_review("Dune", "Great world-building.")
-            True
         """
         book = self.find_book_by_title(title)
         if not book:
@@ -357,7 +353,6 @@ class BookCollection:
         validated_review = self._validate_text_input(review, "review")
         book.reviews.append(validated_review)
         self.save_books()
-        return True
 
     def get_reviews(self, title: str) -> List[str]:
         """Get all reviews for a given book title.
@@ -512,21 +507,47 @@ class BookCollection:
             Book: Parsed Book instance with normalized ratings/reviews lists.
 
         Raises:
-            TypeError: If required Book fields are missing or malformed.
+            TypeError: If required Book fields are missing.
+            ValidationError: If field values have invalid types or values.
 
         Example:
             >>> collection = BookCollection()
             >>> collection._book_from_dict({"title": "Dune", "author": "Frank Herbert", "year": 1965, "read": False})
             Book(title='Dune', author='Frank Herbert', year=1965, read=False, ratings=[], reviews=[])
         """
-        normalized_book = dict(raw_book)
-        ratings = normalized_book.get("ratings", [])
-        reviews = normalized_book.get("reviews", [])
+        if not isinstance(raw_book, dict):
+            raise TypeError("book record must be a dictionary")
 
-        normalized_book["ratings"] = ratings if isinstance(ratings, list) else []
-        normalized_book["reviews"] = reviews if isinstance(reviews, list) else []
+        required_fields = ("title", "author", "year", "read")
+        missing_fields = [field for field in required_fields if field not in raw_book]
+        if missing_fields:
+            raise TypeError("missing required fields: " + ", ".join(missing_fields))
 
-        return Book(**normalized_book)
+        title = raw_book["title"]
+        author = raw_book["author"]
+        if not isinstance(title, str):
+            raise ValidationError("title must be a string")
+        if not isinstance(author, str):
+            raise ValidationError("author must be a string")
+        year = self._validate_year(raw_book["year"])
+        read = raw_book["read"]
+        if not isinstance(read, bool):
+            raise ValidationError("read must be a boolean")
+
+        raw_ratings = raw_book.get("ratings", [])
+        raw_reviews = raw_book.get("reviews", [])
+        ratings = []
+        reviews = []
+
+        if isinstance(raw_ratings, list):
+            for rating in raw_ratings:
+                ratings.append(self._validate_rating(rating))
+
+        if isinstance(raw_reviews, list):
+            for review in raw_reviews:
+                reviews.append(self._validate_text_input(review, "review"))
+
+        return Book(title=title, author=author, year=year, read=read, ratings=ratings, reviews=reviews)
 
     @contextmanager
     def _open_data_file(self, mode: str) -> Iterator[TextIO]:

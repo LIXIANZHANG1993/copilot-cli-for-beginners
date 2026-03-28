@@ -51,11 +51,15 @@ def validate_title(raw_title: str) -> str:
     return title
 
 
-def parse_publication_year(year_input: str) -> tuple[int, bool]:
+def parse_publication_year(year_input: str) -> int:
+    year_text = year_input.strip()
+    if not year_text:
+        raise ValidationError("Invalid year. Please enter a valid integer.")
+
     try:
-        return int(year_input.strip()), False
-    except ValueError:
-        return 0, True
+        return int(year_text)
+    except ValueError as error:
+        raise ValidationError("Invalid year. Please enter a valid integer.") from error
 
 
 def get_book_details() -> tuple[str, str, int]:
@@ -70,9 +74,11 @@ def get_book_details() -> tuple[str, str, int]:
 
     author = input("Enter author: ").strip()
     year_input = input("Enter publication year: ")
-    year, used_default = parse_publication_year(year_input)
-    if used_default:
+    try:
+        year = parse_publication_year(year_input)
+    except ValidationError:
         display_message("Invalid year. Defaulting to 0.")
+        year = 0
 
     return title, author, year
 

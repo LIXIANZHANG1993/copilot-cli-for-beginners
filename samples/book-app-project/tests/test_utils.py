@@ -108,9 +108,8 @@ def test_get_book_details_invalid_year_formats_default_to_zero(monkeypatch, caps
 
 
 def test_parse_publication_year_returns_default_on_invalid():
-    year, used_default = utils.parse_publication_year("not-a-year")
-    assert year == 0
-    assert used_default is True
+    with pytest.raises(utils.ValidationError, match=r"Invalid year\. Please enter a valid integer\."):
+        utils.parse_publication_year("not-a-year")
 
 
 def test_format_books_returns_no_books_message():

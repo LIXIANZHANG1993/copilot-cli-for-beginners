@@ -1,7 +1,7 @@
 import sys
 from books import BookCollection
 from utils import print_books
-from errors import BookAppError, NotFoundError
+from errors import BookAppError, NotFoundError, ValidationError
 
 
 # Global collection instance
@@ -32,11 +32,13 @@ def handle_remove() -> None:
     print("\nRemove a Book\n")
 
     title = input("Enter the title of the book to remove: ").strip()
-    removed, message = collection.remove_book(title)
-    if removed:
-        print(f"\n{message}\n")
-    else:
-        print(f"\nNot removed: {message}\n")
+    try:
+        collection.remove_book(title)
+        print("\nBook removed successfully.\n")
+    except (ValidationError, NotFoundError) as error:
+        print(f"\nNot removed: {error}\n")
+    except BookAppError as error:
+        print(f"\nError: {error}\n")
 
 
 def handle_find() -> None:

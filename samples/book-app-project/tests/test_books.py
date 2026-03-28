@@ -30,30 +30,26 @@ def test_add_book():
 def test_mark_book_as_read():
     collection = BookCollection()
     collection.add_book("Dune", "Frank Herbert", 1965)
-    result = collection.mark_as_read("Dune")
-    assert result is True
+    collection.mark_as_read("Dune")
     book = collection.find_book_by_title("Dune")
     assert book.read is True
 
 def test_mark_book_as_read_invalid():
     collection = BookCollection()
-    result = collection.mark_as_read("Nonexistent Book")
-    assert result is False
+    with pytest.raises(NotFoundError, match="book not found"):
+        collection.mark_as_read("Nonexistent Book")
 
 def test_remove_book():
     collection = BookCollection()
     collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
-    result, message = collection.remove_book("The Hobbit")
-    assert result is True
-    assert message == "Book 'The Hobbit' removed."
+    collection.remove_book("The Hobbit")
     book = collection.find_book_by_title("The Hobbit")
     assert book is None
 
 def test_remove_book_invalid():
     collection = BookCollection()
-    result, message = collection.remove_book("Nonexistent Book")
-    assert result is False
-    assert message == "Book 'Nonexistent Book' not found."
+    with pytest.raises(NotFoundError, match=r"Book 'Nonexistent Book' not found\."):
+        collection.remove_book("Nonexistent Book")
 
 
 def test_search_books_by_title_partial_case_insensitive():
@@ -157,8 +153,8 @@ def test_add_rating_success_and_average():
     collection = BookCollection()
     collection.add_book("Dune", "Frank Herbert", 1965)
 
-    assert collection.add_rating("Dune", 8) is True
-    assert collection.add_rating("Dune", 10) is True
+    collection.add_rating("Dune", 8)
+    collection.add_rating("Dune", 10)
     assert collection.get_average_rating("Dune") == 9.0
 
 
@@ -174,8 +170,8 @@ def test_add_review_and_get_reviews_with_multiple_entries():
     collection = BookCollection()
     collection.add_book("Dune", "Frank Herbert", 1965)
 
-    assert collection.add_review("Dune", "Excellent pacing.") is True
-    assert collection.add_review("Dune", "Loved the characters.") is True
+    collection.add_review("Dune", "Excellent pacing.")
+    collection.add_review("Dune", "Loved the characters.")
     assert collection.get_reviews("Dune") == ["Excellent pacing.", "Loved the characters."]
 
 
@@ -259,6 +255,15 @@ def test_load_books_raises_storage_error_for_corrupted_json(tmp_path, monkeypatc
     monkeypatch.setattr(books, "DATA_FILE", str(temp_file))
 
     with pytest.raises(StorageError, match="data.json is corrupted"):
+        BookCollection()
+
+
+def test_load_books_raises_storage_error_for_invalid_record_types(tmp_path, monkeypatch):
+    temp_file = tmp_path / "invalid-record.json"
+    temp_file.write_text('[{"title":"Dune","author":"Frank Herbert","year":"1965","read":false}]')
+    monkeypatch.setattr(books, "DATA_FILE", str(temp_file))
+
+    with pytest.raises(StorageError, match="data.json contains invalid book records"):
         BookCollection()
 
 
@@ -380,15 +385,15 @@ def test_find_by_author_returns_empty_when_collection_is_empty():
 
 def test_remove_book_returns_false_when_collection_is_empty():
     collection = BookCollection()
-    result, message = collection.remove_book("Missing")
-    assert result is False
-    assert message == "Book 'Missing' not found."
+    with pytest.raises(NotFoundError, match=r"Book 'Missing' not found\."):
+        collection.remove_book("Missing")
     assert collection.list_books() == []
 
 
 def test_mark_as_read_returns_false_when_collection_is_empty():
     collection = BookCollection()
-    assert collection.mark_as_read("Missing") is False
+    with pytest.raises(NotFoundError, match="book not found"):
+        collection.mark_as_read("Missing")
     assert collection.list_books() == []
 
 
@@ -397,10 +402,10 @@ def test_edge_case_empty_data_collection_starts_and_stays_empty():
     assert collection.list_books() == []
     assert collection.find_by_author("Anyone") == []
     assert collection.find_book_by_title("Unknown") is None
-    result, message = collection.remove_book("Unknown")
-    assert result is False
-    assert message == "Book 'Unknown' not found."
-    assert collection.mark_as_read("Unknown") is False
+    with pytest.raises(NotFoundError, match=r"Book 'Unknown' not found\."):
+        collection.remove_book("Unknown")
+    with pytest.raises(NotFoundError, match="book not found"):
+        collection.mark_as_read("Unknown")
 
 
 @pytest.mark.parametrize(
@@ -485,6 +490,14 @@ def test_book_from_dict_raises_type_error_when_required_fields_missing():
         collection._book_from_dict({"title": "Dune"})
 
 
+def test_book_from_dict_raises_validation_error_for_non_boolean_read():
+    collection = BookCollection()
+    with pytest.raises(ValidationError, match="read must be a boolean"):
+        collection._book_from_dict(
+            {"title": "Dune", "author": "Frank Herbert", "year": 1965, "read": "yes"}
+        )
+
+
 def test_load_books_uses_empty_list_when_file_not_found(tmp_path, monkeypatch):
     missing_file = tmp_path / "missing.json"
     monkeypatch.setattr(books, "DATA_FILE", str(missing_file))
@@ -554,10 +567,9 @@ def test_remove_book_partial_title_does_not_match():
     collection = BookCollection()
     collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
 
-    result, message = collection.remove_book("Hob")
+    with pytest.raises(NotFoundError, match=r"Book not found\. Did you mean: 'The Hobbit'\?"):
+        collection.remove_book("Hob")
 
-    assert result is False
-    assert message == "Book not found. Did you mean: 'The Hobbit'?"
     assert collection.find_book_by_title("The Hobbit") is not None
 
 
@@ -566,9 +578,7 @@ def test_remove_book_with_duplicates_removes_only_one_record():
     collection.add_book("Dune", "Frank Herbert", 1965)
     collection.add_book("Dune", "Frank Herbert", 1965)
 
-    result, message = collection.remove_book("Dune")
-    assert result is True
-    assert message == "Book 'Dune' removed."
+    collection.remove_book("Dune")
     assert len(collection.list_books()) == 1
     assert collection.find_book_by_title("Dune") is not None
 
@@ -577,39 +587,31 @@ def test_remove_book_casefold_and_extra_spaces_match():
     collection = BookCollection()
     collection.add_book("Dune Messiah", "Frank Herbert", 1969)
 
-    result, message = collection.remove_book("  dune   messiah ")
+    collection.remove_book("  dune   messiah ")
 
-    assert result is True
-    assert message == "Book 'Dune Messiah' removed."
     assert collection.find_book_by_title("Dune Messiah") is None
 
 
 def test_remove_book_returns_validation_message_for_invalid_title_type():
     collection = BookCollection()
 
-    result, message = collection.remove_book(None)
-
-    assert result is False
-    assert message == "Title must be a string."
+    with pytest.raises(ValidationError, match=r"Title must be a string\."):
+        collection.remove_book(None)
 
 
 def test_remove_book_returns_validation_message_for_blank_title():
     collection = BookCollection()
 
-    result, message = collection.remove_book("   ")
-
-    assert result is False
-    assert message == "Title cannot be empty."
+    with pytest.raises(ValidationError, match=r"Title cannot be empty\."):
+        collection.remove_book("   ")
 
 
 def test_remove_book_existing_book_returns_success_feedback():
     collection = BookCollection()
     collection.add_book("Project Hail Mary", "Andy Weir", 2021)
 
-    removed, message = collection.remove_book("Project Hail Mary")
+    collection.remove_book("Project Hail Mary")
 
-    assert removed is True
-    assert message == "Book 'Project Hail Mary' removed."
     assert collection.find_book_by_title("Project Hail Mary") is None
 
 
@@ -617,10 +619,8 @@ def test_remove_book_title_match_is_case_insensitive():
     collection = BookCollection()
     collection.add_book("Dune", "Frank Herbert", 1965)
 
-    removed, message = collection.remove_book("dUnE")
+    collection.remove_book("dUnE")
 
-    assert removed is True
-    assert message == "Book 'Dune' removed."
     assert collection.find_book_by_title("Dune") is None
 
 
@@ -628,20 +628,17 @@ def test_remove_book_missing_book_returns_useful_feedback():
     collection = BookCollection()
     collection.add_book("Dune Messiah", "Frank Herbert", 1969)
 
-    removed, message = collection.remove_book("Dune")
+    with pytest.raises(NotFoundError, match=r"Book not found\. Did you mean: 'Dune Messiah'\?"):
+        collection.remove_book("Dune")
 
-    assert removed is False
-    assert message == "Book not found. Did you mean: 'Dune Messiah'?"
     assert collection.find_book_by_title("Dune Messiah") is not None
 
 
 def test_remove_book_from_empty_collection_returns_not_found_feedback():
     collection = BookCollection()
 
-    removed, message = collection.remove_book("The Hobbit")
-
-    assert removed is False
-    assert message == "Book 'The Hobbit' not found."
+    with pytest.raises(NotFoundError, match=r"Book 'The Hobbit' not found\."):
+        collection.remove_book("The Hobbit")
 
 
 def test_search_books_returns_empty_when_collection_is_empty():
