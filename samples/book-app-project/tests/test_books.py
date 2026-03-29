@@ -680,6 +680,40 @@ def test_search_books_returns_empty_when_collection_is_empty():
     assert collection.search_books("dune", "both") == []
 
 
+def test_search_by_year_range_returns_inclusive_matches():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
+    collection.add_book("Neuromancer", "William Gibson", 1984)
+
+    results = collection.search_by_year_range(1937, 1965)
+
+    assert [book.title for book in results] == ["Dune", "The Hobbit"]
+
+
+def test_search_by_year_range_returns_empty_when_no_match():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    results = collection.search_by_year_range(1970, 1980)
+
+    assert results == []
+
+
+def test_search_by_year_range_raises_for_invalid_year_type():
+    collection = BookCollection()
+
+    with pytest.raises(ValidationError, match="year must be an integer"):
+        collection.search_by_year_range("1960", 1970)
+
+
+def test_search_by_year_range_raises_for_reversed_range():
+    collection = BookCollection()
+
+    with pytest.raises(ValidationError, match="start year cannot be greater than end year"):
+        collection.search_by_year_range(2000, 1990)
+
+
 def test_save_books_raises_storage_error_on_permission_denied(monkeypatch):
     collection = BookCollection()
 

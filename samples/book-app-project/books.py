@@ -318,6 +318,32 @@ class BookCollection:
 
         return results
 
+    def search_by_year_range(self, start_year: int, end_year: int) -> List[Book]:
+        """Return books published between two inclusive years.
+
+        Args:
+            start_year (int): Inclusive lower publication year bound.
+            end_year (int): Inclusive upper publication year bound.
+
+        Returns:
+            List[Book]: Books whose year is within [start_year, end_year].
+
+        Raises:
+            ValidationError: If either year is invalid or start_year > end_year.
+
+        Example:
+            >>> collection = BookCollection()
+            >>> collection.add_book("Dune", "Frank Herbert", 1965)
+            >>> [b.title for b in collection.search_by_year_range(1960, 1970)]
+            ['Dune']
+        """
+        validated_start_year = self._validate_year(start_year)
+        validated_end_year = self._validate_year(end_year)
+        if validated_start_year > validated_end_year:
+            raise ValidationError("start year cannot be greater than end year")
+
+        return [book for book in self.books if validated_start_year <= book.year <= validated_end_year]
+
     def add_rating(self, title: str, rating: int) -> None:
         """Add a numeric rating to a book.
 

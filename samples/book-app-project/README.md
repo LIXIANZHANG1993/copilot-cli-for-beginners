@@ -32,6 +32,7 @@ python book_app.py list
 python book_app.py add
 python book_app.py find
 python book_app.py search
+python book_app.py search-year
 python book_app.py rate
 python book_app.py review
 python book_app.py reviews
@@ -57,6 +58,54 @@ Your Book Collection:
 
 1. [ ] Dune by Frank Herbert (1965)
 2. [ ] Dune Messiah by Frank Herbert (1969)
+```
+
+## Search by Year Range Example
+
+```bash
+python book_app.py search-year
+```
+
+Use this command to find books published between two years (inclusive).
+
+Rules:
+
+* Both values must be valid integers
+* Range is inclusive (`start_year <= book.year <= end_year`)
+* `start year` cannot be greater than `end year`
+
+Example interaction:
+
+```text
+Search Books by Year Range
+
+Start year: 1930
+End year: 1970
+
+Your Book Collection:
+
+1. [ ] Dune by Frank Herbert (1965)
+2. [ ] The Hobbit by J.R.R. Tolkien (1937)
+```
+
+Error examples:
+
+```text
+Search Books by Year Range
+
+Start year: 2000
+End year: 1990
+
+Error: start year cannot be greater than end year
+```
+
+```text
+Search Books by Year Range
+
+Start year: 19xx
+End year: 2000
+
+Error: years must be numbers.
 ```
 
 ## Rating and Review Examples
@@ -152,7 +201,7 @@ Not removed: Book 'Missing' not found.
 python -m pytest tests/
 ```
 
-目前測試全數通過：`120 passed`。
+目前測試全數通過：`135 passed`。
 
 ---
 

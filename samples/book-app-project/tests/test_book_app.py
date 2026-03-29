@@ -3,6 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
 import books
 import book_app
 from books import BookCollection
@@ -33,6 +34,96 @@ def test_handle_search_displays_matching_books(tmp_path, monkeypatch, capsys):
     assert "Search Books" in captured.out
     assert "Dune by Frank Herbert (1965)" in captured.out
     assert "The Hobbit" not in captured.out
+
+
+def test_handle_search_year_displays_matching_books(tmp_path, monkeypatch, capsys):
+    collection = _setup_collection(tmp_path, monkeypatch)
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
+    collection.add_book("Neuromancer", "William Gibson", 1984)
+
+    _set_inputs(monkeypatch, ["1930", "1970"])
+    book_app.handle_search_year()
+
+    captured = capsys.readouterr()
+    assert "Search Books by Year Range" in captured.out
+    assert "Dune by Frank Herbert (1965)" in captured.out
+    assert "The Hobbit by J.R.R. Tolkien (1937)" in captured.out
+    assert "Neuromancer by William Gibson (1984)" not in captured.out
+
+
+def test_handle_search_year_includes_single_year_boundary_match(tmp_path, monkeypatch, capsys):
+    collection = _setup_collection(tmp_path, monkeypatch)
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("The Hobbit", "J.R.R. Tolkien", 1937)
+
+    _set_inputs(monkeypatch, ["1965", "1965"])
+    book_app.handle_search_year()
+
+    captured = capsys.readouterr()
+    assert "Dune by Frank Herbert (1965)" in captured.out
+    assert "The Hobbit by J.R.R. Tolkien (1937)" not in captured.out
+
+
+def test_handle_search_year_shows_error_for_non_numeric_input(tmp_path, monkeypatch, capsys):
+    _setup_collection(tmp_path, monkeypatch)
+
+    _set_inputs(monkeypatch, ["nineteen-sixty", "1970"])
+    book_app.handle_search_year()
+
+    captured = capsys.readouterr()
+    assert "Error: years must be numbers." in captured.out
+
+
+@pytest.mark.parametrize(
+    "start_year_input,end_year_input",
+    [
+        ("1960", "nineteen-seventy"),
+        ("", "1970"),
+        ("1960", "   "),
+    ],
+)
+def test_handle_search_year_shows_error_for_invalid_year_inputs(
+    tmp_path, monkeypatch, capsys, start_year_input, end_year_input
+):
+    _setup_collection(tmp_path, monkeypatch)
+
+    _set_inputs(monkeypatch, [start_year_input, end_year_input])
+    book_app.handle_search_year()
+
+    captured = capsys.readouterr()
+    assert "Error: years must be numbers." in captured.out
+
+
+def test_handle_search_year_shows_error_for_negative_year(tmp_path, monkeypatch, capsys):
+    _setup_collection(tmp_path, monkeypatch)
+
+    _set_inputs(monkeypatch, ["-1", "1970"])
+    book_app.handle_search_year()
+
+    captured = capsys.readouterr()
+    assert "Error: year cannot be negative" in captured.out
+
+
+def test_handle_search_year_shows_error_for_reversed_range(tmp_path, monkeypatch, capsys):
+    _setup_collection(tmp_path, monkeypatch)
+
+    _set_inputs(monkeypatch, ["2000", "1990"])
+    book_app.handle_search_year()
+
+    captured = capsys.readouterr()
+    assert "Error: start year cannot be greater than end year" in captured.out
+
+
+def test_handle_search_year_no_results_shows_empty_collection_message(tmp_path, monkeypatch, capsys):
+    collection = _setup_collection(tmp_path, monkeypatch)
+    collection.add_book("Dune", "Frank Herbert", 1965)
+
+    _set_inputs(monkeypatch, ["1970", "1980"])
+    book_app.handle_search_year()
+
+    captured = capsys.readouterr()
+    assert "No books in your collection." in captured.out
 
 
 def test_handle_rate_adds_rating_and_shows_average(tmp_path, monkeypatch, capsys):
@@ -68,6 +159,7 @@ def test_show_help_lists_new_commands(capsys):
     captured = capsys.readouterr()
     assert "list unread - Show unread books only" in captured.out
     assert "search   - Search books by title/author keyword" in captured.out
+    assert "search-year - Search books published between two years" in captured.out
     assert "rate     - Add a 1-10 rating to a book" in captured.out
     assert "review   - Add a text review for a book" in captured.out
     assert "reviews  - Show all reviews for a book" in captured.out

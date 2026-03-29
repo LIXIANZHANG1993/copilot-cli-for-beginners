@@ -69,6 +69,26 @@ def handle_search() -> None:
         print(f"\nError: {e}\n")
 
 
+def handle_search_year() -> None:
+    print("\nSearch Books by Year Range\n")
+
+    start_year_str = input("Start year: ").strip()
+    end_year_str = input("End year: ").strip()
+
+    try:
+        start_year = int(start_year_str)
+        end_year = int(end_year_str)
+    except ValueError:
+        print("\nError: years must be numbers.\n")
+        return
+
+    try:
+        results = collection.search_by_year_range(start_year, end_year)
+        print_books(results)
+    except BookAppError as error:
+        print(f"\nError: {error}\n")
+
+
 def handle_rate() -> None:
     print("\nRate a Book\n")
 
@@ -118,7 +138,7 @@ def handle_reviews() -> None:
     print()
 
 
-def show_help():
+def show_help() -> None:
     print("""
 Book Collection Helper
 
@@ -129,6 +149,7 @@ Commands:
   remove   - Remove a book by title
   find     - Find books by author
   search   - Search books by title/author keyword
+  search-year - Search books published between two years
   rate     - Add a 1-10 rating to a book
   review   - Add a text review for a book
   reviews  - Show all reviews for a book
@@ -136,7 +157,7 @@ Commands:
 """)
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         show_help()
         return
@@ -154,6 +175,7 @@ def main():
         "remove": handle_remove,
         "find": handle_find,
         "search": handle_search,
+        "search-year": handle_search_year,
         "rate": handle_rate,
         "review": handle_review,
         "reviews": handle_reviews,
