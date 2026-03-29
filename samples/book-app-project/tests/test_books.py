@@ -286,6 +286,40 @@ def test_list_books_returns_internal_list_reference():
     assert listed == []
 
 
+def test_get_unread_books_when_no_books_returns_empty_list():
+    collection = BookCollection()
+    assert collection.get_unread_books() == []
+
+
+def test_get_unread_books_with_mixed_status_returns_only_unread():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("Foundation", "Isaac Asimov", 1951)
+    collection.mark_as_read("Dune")
+
+    assert [book.title for book in collection.get_unread_books()] == ["Foundation"]
+
+
+def test_get_unread_books_when_all_books_are_read_returns_empty_list():
+    collection = BookCollection()
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("Foundation", "Isaac Asimov", 1951)
+    collection.mark_as_read("Dune")
+    collection.mark_as_read("Foundation")
+
+    assert collection.get_unread_books() == []
+
+
+def test_get_unread_books_preserves_insertion_order_for_unread_books():
+    collection = BookCollection()
+    collection.add_book("A", "Author", 2001)
+    collection.add_book("B", "Author", 2002)
+    collection.add_book("C", "Author", 2003)
+    collection.mark_as_read("B")
+
+    assert [book.title for book in collection.get_unread_books()] == ["A", "C"]
+
+
 def test_find_by_author_exact_case_insensitive_match():
     collection = BookCollection()
     collection.add_book("Dune", "Frank Herbert", 1965)

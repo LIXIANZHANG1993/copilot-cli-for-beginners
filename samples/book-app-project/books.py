@@ -135,6 +135,26 @@ class BookCollection:
         """
         return self.books
 
+    def get_unread_books(self) -> List[Book]:
+        """Return all unread books in insertion order.
+
+        Args:
+            None
+
+        Returns:
+            List[Book]: Books where read is False.
+
+        Raises:
+            None
+
+        Example:
+            >>> collection = BookCollection()
+            >>> collection.add_book("Dune", "Frank Herbert", 1965)
+            >>> [book.title for book in collection.get_unread_books()]
+            ['Dune']
+        """
+        return [book for book in self.books if not book.read]
+
     def find_book_by_title(self, title: str) -> Optional[Book]:
         """Find a single book by normalized exact title match.
 

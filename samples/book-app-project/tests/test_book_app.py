@@ -66,10 +66,71 @@ def test_show_help_lists_new_commands(capsys):
     book_app.show_help()
 
     captured = capsys.readouterr()
+    assert "list unread - Show unread books only" in captured.out
     assert "search   - Search books by title/author keyword" in captured.out
     assert "rate     - Add a 1-10 rating to a book" in captured.out
     assert "review   - Add a text review for a book" in captured.out
     assert "reviews  - Show all reviews for a book" in captured.out
+
+
+def test_handle_list_unread_displays_only_unread_books(tmp_path, monkeypatch, capsys):
+    collection = _setup_collection(tmp_path, monkeypatch)
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.add_book("Foundation", "Isaac Asimov", 1951)
+    collection.mark_as_read("Dune")
+
+    book_app.handle_list_unread()
+
+    captured = capsys.readouterr()
+    assert "Foundation by Isaac Asimov (1951)" in captured.out
+    assert "Dune by Frank Herbert (1965)" not in captured.out
+
+
+def test_handle_list_unread_with_no_unread_books_shows_empty_collection_message(
+    tmp_path, monkeypatch, capsys
+):
+    collection = _setup_collection(tmp_path, monkeypatch)
+    collection.add_book("Dune", "Frank Herbert", 1965)
+    collection.mark_as_read("Dune")
+
+    book_app.handle_list_unread()
+
+    captured = capsys.readouterr()
+    assert "No books in your collection." in captured.out
+
+
+def test_main_list_unread_dispatches_to_unread_handler(tmp_path, monkeypatch):
+    _setup_collection(tmp_path, monkeypatch)
+    invoked = {"called": False}
+
+    def fake_handle_list_unread():
+        invoked["called"] = True
+
+    monkeypatch.setattr(book_app, "handle_list_unread", fake_handle_list_unread)
+    monkeypatch.setattr(book_app.sys, "argv", ["book_app.py", "list", "unread"])
+
+    book_app.main()
+
+    assert invoked["called"] is True
+
+
+def test_main_list_without_subcommand_uses_regular_list_handler(tmp_path, monkeypatch):
+    _setup_collection(tmp_path, monkeypatch)
+    call_order = []
+
+    def fake_handle_list():
+        call_order.append("list")
+
+    def fake_handle_list_unread():
+        call_order.append("unread")
+
+    monkeypatch.setattr(book_app, "handle_list", fake_handle_list)
+    monkeypatch.setattr(book_app, "handle_list_unread", fake_handle_list_unread)
+    monkeypatch.setattr(book_app.sys, "argv", ["book_app.py", "list"])
+
+    book_app.main()
+
+    assert call_order == ["list"]
 
 
 def test_handle_remove_reports_not_removed_when_missing(tmp_path, monkeypatch, capsys):
